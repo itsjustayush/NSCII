@@ -1,0 +1,465 @@
+/* ASCII Koi World Theme & UI Styling */
+
+:root {
+  --bg-water: #0e2a32;
+  --text-ink: #ebe6dc;
+  --accent-color: #e8784f;
+  --glass-bg: rgba(14, 42, 50, 0.45);
+  --glass-border: rgba(235, 230, 220, 0.15);
+  --glass-border-focus: rgba(232, 120, 79, 0.6);
+  --ui-font: "Geist Mono", ui-monospace, Menlo, Monaco, Consolas, monospace;
+}
+
+* {
+  box-sizing: border-box;
+  margin: 0;
+  padding: 0;
+}
+
+body, html, #root {
+  width: 100%;
+  height: 100%;
+  overflow: hidden;
+  font-family: var(--ui-font);
+  color: var(--text-ink);
+  background-color: var(--bg-water);
+  -webkit-font-smoothing: antialiased;
+}
+
+/* Fullscreen Canvas */
+.ascii-canvas-container {
+  position: fixed;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  z-index: 0;
+  cursor: crosshair;
+}
+
+.ascii-canvas {
+  width: 100%;
+  height: 100%;
+  display: block;
+}
+
+/* Central Overlay */
+.newtab-center-container {
+  position: fixed;
+  inset: 0;
+  z-index: 10;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  pointer-events: none;
+  padding: 24px;
+}
+
+.newtab-interactive-box {
+  pointer-events: auto;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  max-width: 680px;
+  width: 100%;
+  gap: 16px;
+}
+
+/* Clock Styles */
+.clock-display {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  text-align: center;
+  gap: 4px;
+  user-select: none;
+}
+
+.clock-greeting {
+  font-size: 13px;
+  letter-spacing: 0.22em;
+  text-transform: uppercase;
+  opacity: 0.75;
+  color: var(--accent-color);
+  font-weight: 500;
+}
+
+.clock-time {
+  font-size: 72px;
+  font-weight: 700;
+  line-height: 1;
+  letter-spacing: -0.02em;
+  color: var(--text-ink);
+  text-shadow: 0 0 24px rgba(255, 255, 255, 0.15);
+}
+
+.clock-seconds {
+  font-size: 32px;
+  opacity: 0.5;
+  font-weight: 400;
+}
+
+.clock-subline {
+  font-size: 13px;
+  letter-spacing: 0.18em;
+  text-transform: uppercase;
+  opacity: 0.65;
+  margin-top: 4px;
+}
+
+/* Search Bar Styles */
+.search-wrapper {
+  position: relative;
+  width: 100%;
+  max-width: 540px;
+  margin-top: 12px;
+}
+
+.search-box {
+  display: flex;
+  align-items: center;
+  background: var(--glass-bg);
+  backdrop-filter: blur(16px);
+  -webkit-backdrop-filter: blur(16px);
+  border: 1px solid var(--glass-border);
+  border-radius: 8px;
+  padding: 8px 14px;
+  gap: 10px;
+  transition: all 0.25s ease;
+  box-shadow: 0 4px 20px rgba(0, 0, 0, 0.2);
+}
+
+.search-box:focus-within {
+  border-color: var(--glass-border-focus);
+  box-shadow: 0 0 0 1px var(--glass-border-focus), 0 8px 32px rgba(0, 0, 0, 0.35);
+  background: rgba(14, 42, 50, 0.65);
+}
+
+.search-prefix {
+  font-size: 13px;
+  color: var(--accent-color);
+  opacity: 0.85;
+  user-select: none;
+}
+
+.search-input {
+  flex: 1;
+  background: transparent;
+  border: none;
+  outline: none;
+  font-family: inherit;
+  font-size: 14px;
+  color: var(--text-ink);
+  caret-color: var(--accent-color);
+  letter-spacing: 0.04em;
+}
+
+.search-input::placeholder {
+  color: var(--text-ink);
+  opacity: 0.35;
+}
+
+.search-engine-badge {
+  font-size: 11px;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  background: rgba(255, 255, 255, 0.08);
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  padding: 3px 7px;
+  border-radius: 4px;
+  cursor: pointer;
+  opacity: 0.7;
+  transition: all 0.2s ease;
+}
+
+.search-engine-badge:hover {
+  opacity: 1;
+  background: rgba(255, 255, 255, 0.15);
+  color: var(--accent-color);
+}
+
+/* Suggestions Dropdown */
+.suggestions-dropdown {
+  position: absolute;
+  top: 100%;
+  left: 0;
+  right: 0;
+  margin-top: 6px;
+  background: var(--glass-bg);
+  backdrop-filter: blur(20px);
+  -webkit-backdrop-filter: blur(20px);
+  border: 1px solid var(--glass-border);
+  border-radius: 8px;
+  overflow: hidden;
+  box-shadow: 0 12px 36px rgba(0, 0, 0, 0.4);
+  z-index: 20;
+}
+
+.suggestion-item {
+  display: flex;
+  align-items: center;
+  padding: 9px 14px;
+  font-size: 13px;
+  color: var(--text-ink);
+  cursor: pointer;
+  gap: 10px;
+  transition: background 0.15s ease;
+}
+
+.suggestion-item:hover,
+.suggestion-item.active {
+  background: rgba(255, 255, 255, 0.1);
+  color: var(--accent-color);
+}
+
+.suggestion-icon {
+  font-size: 12px;
+  opacity: 0.5;
+}
+
+/* Quick Action / Interaction Bar */
+.interaction-bar {
+  position: fixed;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  z-index: 30;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 14px 24px;
+  font-size: 12px;
+  letter-spacing: 0.06em;
+  background: linear-gradient(to top, rgba(0, 0, 0, 0.4), transparent);
+  transition: opacity 0.4s ease;
+  pointer-events: auto;
+}
+
+.interaction-bar.idle {
+  opacity: 0.15;
+}
+
+.interaction-bar:hover,
+.interaction-bar:focus-within {
+  opacity: 1;
+}
+
+.bar-left, .bar-right {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.btn-pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-family: inherit;
+  font-size: 12px;
+  letter-spacing: 0.04em;
+  color: var(--text-ink);
+  background: rgba(255, 255, 255, 0.06);
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  padding: 6px 12px;
+  border-radius: 6px;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  user-select: none;
+}
+
+.btn-pill:hover {
+  background: rgba(255, 255, 255, 0.14);
+  border-color: rgba(255, 255, 255, 0.25);
+  color: #fff;
+}
+
+.btn-pill.active {
+  border-color: var(--accent-color);
+  color: var(--accent-color);
+  background: rgba(232, 120, 79, 0.15);
+}
+
+.bar-hint {
+  opacity: 0.55;
+  font-size: 11px;
+}
+
+/* Customization Drawer / Modal */
+.settings-overlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.6);
+  backdrop-filter: blur(8px);
+  -webkit-backdrop-filter: blur(8px);
+  z-index: 100;
+  display: flex;
+  justify-content: flex-end;
+  animation: fadeIn 0.2s ease;
+}
+
+.settings-drawer {
+  width: 100%;
+  max-width: 440px;
+  height: 100%;
+  background: #0b161c;
+  border-left: 1px solid rgba(255, 255, 255, 0.12);
+  display: flex;
+  flex-direction: column;
+  padding: 24px;
+  overflow-y: auto;
+  gap: 20px;
+  box-shadow: -10px 0 30px rgba(0, 0, 0, 0.5);
+  animation: slideLeft 0.25s cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+.settings-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+  padding-bottom: 14px;
+}
+
+.settings-title {
+  font-size: 16px;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  color: var(--accent-color);
+  text-transform: uppercase;
+}
+
+.settings-close {
+  background: transparent;
+  border: none;
+  color: var(--text-ink);
+  cursor: pointer;
+  opacity: 0.6;
+  padding: 4px;
+}
+
+.settings-close:hover {
+  opacity: 1;
+}
+
+.settings-section {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.section-label {
+  font-size: 12px;
+  font-weight: 600;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  opacity: 0.6;
+}
+
+.settings-grid {
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  gap: 8px;
+}
+
+.biome-card {
+  padding: 10px;
+  background: rgba(255, 255, 255, 0.04);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  border-radius: 6px;
+  cursor: pointer;
+  text-align: left;
+  transition: all 0.2s ease;
+}
+
+.biome-card:hover {
+  background: rgba(255, 255, 255, 0.08);
+  border-color: rgba(255, 255, 255, 0.2);
+}
+
+.biome-card.active {
+  border-color: var(--accent-color);
+  background: rgba(232, 120, 79, 0.12);
+}
+
+.biome-card-title {
+  font-size: 13px;
+  font-weight: 600;
+  color: #fff;
+  margin-bottom: 2px;
+}
+
+.biome-card-desc {
+  font-size: 11px;
+  opacity: 0.55;
+  line-height: 1.3;
+}
+
+.theme-pill-grid {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.theme-pill {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 6px 10px;
+  background: rgba(255, 255, 255, 0.05);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  border-radius: 4px;
+  font-size: 11px;
+  cursor: pointer;
+  color: var(--text-ink);
+}
+
+.theme-pill.active {
+  border-color: var(--accent-color);
+  color: var(--accent-color);
+  background: rgba(232, 120, 79, 0.15);
+}
+
+.theme-dot {
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+  display: inline-block;
+}
+
+.setting-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 8px 0;
+}
+
+.setting-label-text {
+  font-size: 13px;
+  color: var(--text-ink);
+}
+
+.setting-input {
+  background: rgba(255, 255, 255, 0.06);
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  color: var(--text-ink);
+  padding: 6px 10px;
+  border-radius: 4px;
+  font-family: inherit;
+  font-size: 13px;
+}
+
+.setting-input:focus {
+  outline: none;
+  border-color: var(--accent-color);
+}
+
+@keyframes fadeIn {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+
+@keyframes slideLeft {
+  from { transform: translateX(100%); }
+  to { transform: translateX(0); }
+}
+
