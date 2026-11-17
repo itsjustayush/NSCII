@@ -1,7 +1,8 @@
 import React from "react";
-import { UserSettings } from "../../services/storage";
+import { UserSettings, DEFAULT_SETTINGS } from "../../services/storage";
 import { BIOMES } from "../../engine/environment/Biomes";
 import { PALETTES } from "../../engine/renderer/ColorPalettes";
+import { SPECIES_CATALOG } from "../../creatures/core/CreatureRegistry";
 
 interface SettingsProps {
   settings: UserSettings;
@@ -86,56 +87,7 @@ export const Settings: React.FC<SettingsProps> = ({
           </div>
         </section>
 
-        {/* 2. Weather & Day/Night Atmosphere */}
-        <section className="settings-section">
-          <span className="section-label">Atmosphere &amp; Weather</span>
-          <div className="setting-row">
-            <span className="setting-label-text">Time of Day</span>
-            <select
-              className="setting-input"
-              value={settings.timeOfDay}
-              onChange={(e) =>
-                onUpdate({
-                  timeOfDay: e.target.value as UserSettings["timeOfDay"],
-                })
-              }
-            >
-              <option value="auto">Auto (Matches Clock)</option>
-              <option value="dawn">Dawn (Morning Dew)</option>
-              <option value="day">Day (Brilliant Caustics)</option>
-              <option value="dusk">Dusk (Golden Hour)</option>
-              <option value="night">Night (Obsidian &amp; Moon)</option>
-            </select>
-          </div>
-          <div className="setting-row">
-            <span className="setting-label-text">Weather</span>
-            <select
-              className="setting-input"
-              value={settings.weather}
-              onChange={(e) =>
-                onUpdate({
-                  weather: e.target.value as UserSettings["weather"],
-                })
-              }
-            >
-              <option value="clear">Clear Skies</option>
-              <option value="rain">Light Rain (Ripples)</option>
-              <option value="snow">Snow (Winter Flakes)</option>
-              <option value="wind">Windy (Current Drift)</option>
-              <option value="mist">Morning Mist</option>
-            </select>
-          </div>
-          <div className="setting-row">
-            <span className="setting-label-text">Synthesized Audio Soundscape</span>
-            <input
-              type="checkbox"
-              checked={!settings.soundMuted}
-              onChange={(e) => onUpdate({ soundMuted: !e.target.checked })}
-            />
-          </div>
-        </section>
-
-        {/* 3. Color Palette / Theme */}
+        {/* 2. Color Palette / Theme */}
         <section className="settings-section">
           <span className="section-label">Visual Palette</span>
           <div className="theme-pill-grid">
@@ -158,7 +110,7 @@ export const Settings: React.FC<SettingsProps> = ({
           </div>
         </section>
 
-        {/* 4. Clock & Information */}
+        {/* 3. Clock & Information */}
         <section className="settings-section">
           <span className="section-label">Clock &amp; Greeting</span>
           <div className="setting-row">
@@ -189,9 +141,9 @@ export const Settings: React.FC<SettingsProps> = ({
           </div>
         </section>
 
-        {/* 5. Search Settings */}
+        {/* 4. Search Settings */}
         <section className="settings-section">
-          <span className="section-label">Search &amp; Shortcuts</span>
+          <span className="section-label">Search Engine</span>
           <div className="setting-row">
             <span className="setting-label-text">Default Engine</span>
             <select
@@ -210,16 +162,19 @@ export const Settings: React.FC<SettingsProps> = ({
               <option value="custom">Custom Template</option>
             </select>
           </div>
-          <div className="setting-row">
-            <span className="setting-label-text">Show Top Site Shortcuts</span>
-            <input
-              type="checkbox"
-              checked={settings.showTopSites}
-              onChange={(e) =>
-                onUpdate({ showTopSites: e.target.checked })
-              }
-            />
-          </div>
+          {settings.searchEngine === "custom" && (
+            <div className="setting-row">
+              <span className="setting-label-text">Search URL (%s query)</span>
+              <input
+                type="text"
+                className="setting-input"
+                value={settings.customSearchUrl}
+                onChange={(e) =>
+                  onUpdate({ customSearchUrl: e.target.value })
+                }
+              />
+            </div>
+          )}
           <div className="setting-row">
             <span className="setting-label-text">Query Suggestions</span>
             <input
@@ -232,7 +187,7 @@ export const Settings: React.FC<SettingsProps> = ({
           </div>
         </section>
 
-        {/* 6. Performance & Quality */}
+        {/* 5. Performance & ASCII Density */}
         <section className="settings-section">
           <span className="section-label">Performance &amp; Quality</span>
           <div className="setting-row">
@@ -275,7 +230,7 @@ export const Settings: React.FC<SettingsProps> = ({
           </div>
         </section>
 
-        {/* 7. Storage & Actions */}
+        {/* 6. Storage & Actions */}
         <section
           className="settings-section"
           style={{
@@ -315,3 +270,4 @@ export const Settings: React.FC<SettingsProps> = ({
     </div>
   );
 };
+

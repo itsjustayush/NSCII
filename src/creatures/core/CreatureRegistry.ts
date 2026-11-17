@@ -6,7 +6,6 @@ import { Dragonfly } from "../flying/Dragonfly";
 import { Frog } from "../terrestrial/Frog";
 import { Crab } from "../terrestrial/Crab";
 import { Crane } from "../flying/Crane";
-import { Dog } from "../terrestrial/Dog";
 
 export interface SpeciesMeta {
   id: string;
@@ -56,7 +55,7 @@ export const SPECIES_CATALOG: Record<string, SpeciesMeta> = {
     iconChar: "(o.o)",
     defaultCount: 6,
     category: "terrestrial",
-    hint: "Resting on lilypads or water. Click to make them leap.",
+    hint: "Resting on the water's edge. Click to make them leap.",
   },
   crab: {
     id: "crab",
@@ -73,14 +72,6 @@ export const SPECIES_CATALOG: Record<string, SpeciesMeta> = {
     defaultCount: 5,
     category: "flying",
     hint: "Graceful migratory flyers gliding across the sky.",
-  },
-  dog: {
-    id: "dog",
-    label: "Playful Pup",
-    iconChar: "▼・ᴥ・▼",
-    defaultCount: 4,
-    category: "terrestrial",
-    hint: "Playful dogs! Drag to fling, pet for hearts, right-click to toss bones, watch them pounce at your cursor and sit on the search bar!",
   },
 };
 
@@ -125,9 +116,8 @@ export function createCreature(
       return new Crab(id, index, px, 0.75 + (index % 3) * 0.08);
     case "crane":
       return new Crane(id, index, px, 0.15 + (index % 4) * 0.1);
-    case "dog":
-      return new Dog(id, index, px, 0.65 + (index % 3) * 0.1);
     default:
       return new Koi(id, index, "kohaku", "course");
   }
 }
+

@@ -11,11 +11,6 @@ export interface UserSettings {
   reduceMotion: boolean;
   cellSize: number; // 0.8 to 1.4
   recentSearches: string[];
-  weather: "clear" | "rain" | "snow" | "wind" | "mist";
-  timeOfDay: "auto" | "dawn" | "day" | "dusk" | "night";
-  soundMuted: boolean;
-  showTopSites: boolean;
-  scratchpadText: string;
 }
 
 export const DEFAULT_SETTINGS: UserSettings = {
@@ -31,11 +26,6 @@ export const DEFAULT_SETTINGS: UserSettings = {
   reduceMotion: false,
   cellSize: 1.0,
   recentSearches: [],
-  weather: "clear",
-  timeOfDay: "auto",
-  soundMuted: true,
-  showTopSites: true,
-  scratchpadText: "",
 };
 
 const STORAGE_KEY = "ascii_newtab_settings";
@@ -80,3 +70,4 @@ export async function saveSettings(settings: UserSettings): Promise<void> {
     console.warn("Could not save to localStorage:", err);
   }
 }
+
