@@ -6,33 +6,51 @@ import {
   isUrl,
 } from "../../services/search";
 
+interface TopSite {
+  title: string;
+  url: string;
+}
+
+const DEFAULT_TOP_SITES: TopSite[] = [
+  { title: "github", url: "https://github.com" },
+  { title: "youtube", url: "https://youtube.com" },
+  { title: "reddit", url: "https://reddit.com" },
+  { title: "gmail", url: "https://mail.google.com" },
+  { title: "x/twitter", url: "https://x.com" },
+];
+
 interface SearchBarProps {
   engineId: "google" | "duckduckgo" | "bing" | "ecosia" | "custom";
   customUrl?: string;
   showSuggestions: boolean;
+  showTopSites: boolean;
   onEngineChange: (
     engine: "google" | "duckduckgo" | "bing" | "ecosia" | "custom"
   ) => void;
   recentSearches: string[];
   onAddRecentSearch: (query: string) => void;
+  dogObstructing?: boolean;
 }
 
 export const SearchBar: React.FC<SearchBarProps> = ({
   engineId,
   customUrl,
   showSuggestions,
+  showTopSites,
   onEngineChange,
   recentSearches,
   onAddRecentSearch,
+  dogObstructing,
 }) => {
   const [query, setQuery] = useState("");
   const [suggestions, setSuggestions] = useState<string[]>([]);
   const [selectedIndex, setSelectedIndex] = useState<number>(-1);
   const [isOpen, setIsOpen] = useState(false);
+  const [dogTeaseMsg, setDogTeaseMsg] = useState<string | null>(null);
+
   const inputRef = useRef<HTMLInputElement>(null);
   const wrapperRef = useRef<HTMLDivElement>(null);
 
-  // Cycle search engine when clicking the badge
   const cycleEngine = () => {
     const list: ("google" | "duckduckgo" | "bing" | "ecosia" | "custom")[] = [
       "google",
@@ -47,7 +65,7 @@ export const SearchBar: React.FC<SearchBarProps> = ({
   const currentEngineName =
     SEARCH_ENGINES.find((e) => e.id === engineId)?.name || "Search";
 
-  // Fetch suggestions with debounce
+  // Suggestions fetch
   useEffect(() => {
     if (!showSuggestions || !query.trim()) {
       setSuggestions([]);
@@ -65,7 +83,7 @@ export const SearchBar: React.FC<SearchBarProps> = ({
     return () => clearTimeout(timer);
   }, [query, showSuggestions]);
 
-  // Handle outside click to close suggestions
+  // Outside click
   useEffect(() => {
     const handleClickOutside = (e: MouseEvent) => {
       if (
@@ -92,6 +110,14 @@ export const SearchBar: React.FC<SearchBarProps> = ({
   };
 
   const handleKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
+    if (dogObstructing && Math.random() < 0.4) {
+      // Playful teasing dog obstructs typing!
+      const teasers = ["*pawed!*", "*bark!*", "🐾", "*lick*", "*wag*"];
+      setDogTeaseMsg(teasers[Math.floor(Math.random() * teasers.length)]);
+      setTimeout(() => setDogTeaseMsg(null), 1200);
+      return;
+    }
+
     if (e.key === "ArrowDown") {
       e.preventDefault();
       if (!isOpen && suggestions.length > 0) {
@@ -120,13 +146,34 @@ export const SearchBar: React.FC<SearchBarProps> = ({
 
   return (
     <div ref={wrapperRef} className="search-wrapper">
+      {/* Playful Dog Sit-On-Search Indicator */}
+      {dogObstructing && (
+        <div
+          style={{
+            position: "absolute",
+            top: "-22px",
+            left: "20px",
+            fontSize: "11px",
+            letterSpacing: "0.1em",
+            color: "#e8784f",
+            animation: "fadeIn 0.2s ease",
+            display: "flex",
+            alignItems: "center",
+            gap: "6px",
+          }}
+        >
+          <span>▼・ᴥ・▼</span>
+          <span>{dogTeaseMsg || "[ Pup is sitting on your search bar! Pet or drag to move ]"}</span>
+        </div>
+      )}
+
       <div className="search-box">
         <span className="search-prefix">&gt;</span>
         <input
           ref={inputRef}
           type="text"
           className="search-input"
-          placeholder="Search the web or enter URL..."
+          placeholder={dogObstructing ? "*pup is resting here...*" : "Search the web or enter URL..."}
           value={query}
           onChange={(e) => setQuery(e.target.value)}
           onKeyDown={handleKeyDown}
@@ -146,6 +193,7 @@ export const SearchBar: React.FC<SearchBarProps> = ({
         </button>
       </div>
 
+      {/* Real-time search suggestions */}
       {isOpen && suggestions.length > 0 && (
         <div className="suggestions-dropdown">
           {suggestions.map((item, idx) => (
@@ -162,7 +210,48 @@ export const SearchBar: React.FC<SearchBarProps> = ({
           ))}
         </div>
       )}
+
+      {/* Minimal ASCII Top Sites */}
+      {showTopSites && (
+        <div
+          style={{
+            display: "flex",
+            justifyContent: "center",
+            gap: "10px",
+            marginTop: "12px",
+            flexWrap: "wrap",
+          }}
+        >
+          {DEFAULT_TOP_SITES.map((site) => (
+            <a
+              key={site.title}
+              href={site.url}
+              style={{
+                fontSize: "11px",
+                letterSpacing: "0.08em",
+                color: "inherit",
+                opacity: 0.65,
+                textDecoration: "none",
+                padding: "2px 6px",
+                borderRadius: "4px",
+                border: "1px solid rgba(255,255,255,0.08)",
+                background: "rgba(255,255,255,0.02)",
+                transition: "all 0.2s ease",
+              }}
+              onMouseEnter={(e) => {
+                e.currentTarget.style.opacity = "1";
+                e.currentTarget.style.borderColor = "var(--accent-color)";
+              }}
+              onMouseLeave={(e) => {
+                e.currentTarget.style.opacity = "0.65";
+                e.currentTarget.style.borderColor = "rgba(255,255,255,0.08)";
+              }}
+            >
+              [ {site.title} ]
+            </a>
+          ))}
+        </div>
+      )}
     </div>
   );
 };
-

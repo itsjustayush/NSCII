@@ -1,25 +1,42 @@
 import React, { useState, useEffect } from "react";
 import { BIOMES } from "../../engine/environment/Biomes";
 import { PALETTES } from "../../engine/renderer/ColorPalettes";
+import { WeatherType } from "../../engine/environment/Weather";
+import { TimeOfDay } from "../../engine/environment/DayNight";
+import { audioService } from "../../services/audio";
 
 interface InteractionBarProps {
   currentBiomeId: string;
   currentPaletteId: string;
+  currentWeather: WeatherType;
+  currentTimeOfDay: TimeOfDay;
+  soundMuted: boolean;
   onFeed: () => void;
   onDisturb: () => void;
   onCycleTheme: () => void;
   onOpenSettings: () => void;
   onSelectBiome: (biomeId: string) => void;
+  onToggleSound: () => void;
+  onCycleWeather: () => void;
+  onCycleTimeOfDay: () => void;
+  onDropLantern?: () => void;
 }
 
 export const InteractionBar: React.FC<InteractionBarProps> = ({
   currentBiomeId,
   currentPaletteId,
+  currentWeather,
+  currentTimeOfDay,
+  soundMuted,
   onFeed,
   onDisturb,
   onCycleTheme,
   onOpenSettings,
   onSelectBiome,
+  onToggleSound,
+  onCycleWeather,
+  onCycleTimeOfDay,
+  onDropLantern,
 }) => {
   const [isIdle, setIsIdle] = useState(false);
   const [showBiomeMenu, setShowBiomeMenu] = useState(false);
@@ -73,7 +90,7 @@ export const InteractionBar: React.FC<InteractionBarProps> = ({
                 display: "flex",
                 flexDirection: "column",
                 gap: "4px",
-                width: "200px",
+                width: "210px",
                 backdropFilter: "blur(12px)",
                 boxShadow: "0 8px 24px rgba(0,0,0,0.5)",
                 zIndex: 40,
@@ -113,9 +130,9 @@ export const InteractionBar: React.FC<InteractionBarProps> = ({
           type="button"
           className="btn-pill"
           onClick={onFeed}
-          title="Toss fish food into the pond (F key)"
+          title={currentBiomeId === "dogpark" ? "Toss bones / treats (F key)" : "Toss fish food into the pond (F key)"}
         >
-          <span>:: Feed</span>
+          <span>{currentBiomeId === "dogpark" ? "🦴 Toss Treat" : ":: Feed"}</span>
         </button>
 
         <button
@@ -127,7 +144,43 @@ export const InteractionBar: React.FC<InteractionBarProps> = ({
           <span>~ Disturb</span>
         </button>
 
-        <span className="bar-hint">{currentBiome.hint}</span>
+        {onDropLantern && (
+          <button
+            type="button"
+            className="btn-pill"
+            onClick={onDropLantern}
+            title="Place floating candle lantern (L key)"
+          >
+            <span>▲ Lantern</span>
+          </button>
+        )}
+
+        <button
+          type="button"
+          className="btn-pill"
+          onClick={onCycleWeather}
+          title="Cycle Weather (Clear, Rain, Snow, Wind, Mist)"
+        >
+          <span>☂ {currentWeather}</span>
+        </button>
+
+        <button
+          type="button"
+          className="btn-pill"
+          onClick={onCycleTimeOfDay}
+          title="Cycle Lighting (Auto, Dawn, Day, Dusk, Night)"
+        >
+          <span>☼ {currentTimeOfDay}</span>
+        </button>
+
+        <button
+          type="button"
+          className={`btn-pill ${!soundMuted ? "active" : ""}`}
+          onClick={onToggleSound}
+          title="Toggle ambient synthesized soundscape"
+        >
+          <span>{soundMuted ? "♫ Mute" : "♫ Sound"}</span>
+        </button>
       </div>
 
       <div className="bar-right">
@@ -161,4 +214,3 @@ export const InteractionBar: React.FC<InteractionBarProps> = ({
     </footer>
   );
 };
-

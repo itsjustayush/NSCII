@@ -15,6 +15,9 @@ import {
 import { BiomeConfig, BIOMES } from "../environment/Biomes";
 import { WaterSimulation } from "../environment/Water";
 import { ParticleSystem } from "../environment/Particles";
+import { WeatherSystem, WeatherType } from "../environment/Weather";
+import { ObstacleManager } from "../environment/Obstacles";
+import { computeLighting, LightingState, TimeOfDay } from "../environment/DayNight";
 import {
   PawInstance,
   pawPose,
@@ -22,6 +25,7 @@ import {
   END as PAW_END,
 } from "../interactions/Paw";
 import { clamp, h2, lerp } from "./Physics";
+import { audioService } from "../../services/audio";
 
 const FLOAT_TIME = 16;
 const SINKING_TIME = 2.5;
@@ -53,6 +57,11 @@ export class World implements WorldContext {
 
   water: WaterSimulation = new WaterSimulation();
   particles: ParticleSystem = new ParticleSystem();
+  weather: WeatherSystem = new WeatherSystem();
+  obstacles: ObstacleManager = new ObstacleManager();
+
+  timeOfDayMode: TimeOfDay = "auto";
+  lighting: LightingState = computeLighting("auto");
 
   pointerX: number = -100;
   pointerY: number = -100;
@@ -68,6 +77,7 @@ export class World implements WorldContext {
     const palCfg = PALETTES[paletteId] || PALETTES.pond;
     this.palette = resolvePalette(palCfg);
     this.setupCreatures();
+    this.obstacles.initForPond(this.vw, this.vh);
   }
 
   setupCreatures() {
@@ -87,6 +97,12 @@ export class World implements WorldContext {
       if (this.biome.defaultPalette && PALETTES[this.biome.defaultPalette]) {
         this.palette = resolvePalette(PALETTES[this.biome.defaultPalette]);
       }
+      if (this.biome.hasLilyPads) {
+        this.obstacles.initForPond(this.vw, this.vh);
+      } else {
+        this.obstacles.lilyPads = [];
+        this.obstacles.stones = [];
+      }
     }
   }
 
@@ -103,6 +119,15 @@ export class World implements WorldContext {
     }
   }
 
+  setWeather(type: WeatherType) {
+    this.weather.setWeather(type);
+  }
+
+  setTimeOfDay(mode: TimeOfDay) {
+    this.timeOfDayMode = mode;
+    this.lighting = computeLighting(mode);
+  }
+
   addRing(x: number, y: number, scale: number = 1, small: boolean = false) {
     this.rings.push({
       x,
@@ -112,6 +137,7 @@ export class World implements WorldContext {
       small,
       tiny: false,
     });
+    audioService.playSplash(scale);
     while (this.rings.length > 50) this.rings.shift();
   }
 
@@ -151,7 +177,7 @@ export class World implements WorldContext {
       const born = this.time + j * 0.012;
       const dur = 0.28 + 0.2 * h2(seed, j * 3 + 4);
 
-      this.food.push({
+      const pellet: FoodPellet = {
         x0: x,
         y0: y,
         x: tx,
@@ -162,7 +188,16 @@ export class World implements WorldContext {
         landed: false,
         eaten: -1,
         claim: 0,
-      });
+      };
+
+      this.food.push(pellet);
+
+      // Notify dogs to fetch
+      for (const c of this.creatures) {
+        if (c.species === "dog" && c.onFeed) {
+          c.onFeed(pellet);
+        }
+      }
     }
 
     while (this.food.length > 90) this.food.shift();
@@ -205,13 +240,46 @@ export class World implements WorldContext {
 
   advance(dt: number, grid: CharacterGrid) {
     this.time += dt;
+    this.lighting = computeLighting(this.timeOfDayMode);
 
-    // 1. Update creatures
+    // 1. Update obstacles (Shishi-odoshi, drifting lilypads, lanterns)
+    if (this.biome.hasLilyPads || this.biome.hasBambooFountain) {
+      this.obstacles.update(dt, this.vw, this.vh, (sx, sy) => {
+        this.addRing(sx, sy, 2.2, false);
+        grid.stampWake(sx, sy, 5, 1.0);
+      });
+    }
+
+    // 2. Update weather particles
+    this.weather.update(dt, this.vw, this.vh, (wx, wy) => {
+      this.addRing(wx, wy, 0.4, true);
+    });
+
+    // 3. Update creatures & apply obstacle avoidance
     for (const c of this.creatures) {
+      // Check stone obstacle avoidance for aquatic creatures
+      if (c.species === "koi" && this.obstacles.stones.length > 0) {
+        const avoid = this.obstacles.getAvoidanceVector(c.x, c.y);
+        if (avoid) {
+          c.angle += (Math.atan2(avoid.vy, avoid.vx) - c.angle) * dt * 3;
+        }
+      }
+
+      // Check lilypad resting for frogs
+      if (c.species === "frog" && this.obstacles.lilyPads.length > 0) {
+        for (const pad of this.obstacles.lilyPads) {
+          const d = Math.hypot(c.x - pad.x, c.y - pad.y);
+          if (d < pad.radius * 0.8 && !pad.occupied) {
+            c.speed = 0; // Frog happily rests on pad!
+            break;
+          }
+        }
+      }
+
       c.update(dt, this);
     }
 
-    // 2. Update food
+    // 4. Update food
     for (const p of this.food) {
       if (!p.landed && this.time >= p.land) {
         p.landed = true;
@@ -219,8 +287,8 @@ export class World implements WorldContext {
         grid.stampWake(p.x, p.y, 1, 0.25);
       }
       if (p.landed && p.eaten < 0) {
-        p.x += Math.sin(this.time * 0.6 + p.seed) * 2.4 * dt;
-        p.y += Math.cos(this.time * 0.45 + p.seed * 1.3) * 1.6 * dt;
+        p.x += (Math.sin(this.time * 0.6 + p.seed) * 2.4 + this.weather.windX * 0.1) * dt;
+        p.y += (Math.cos(this.time * 0.45 + p.seed * 1.3) * 1.6 + this.weather.windY * 0.1) * dt;
       }
     }
 
@@ -230,18 +298,21 @@ export class World implements WorldContext {
         (p.eaten >= 0 && this.time - p.eaten > 0.05) ||
         (p.landed && this.time - p.land > FLOAT_TIME + SINKING_TIME)
       ) {
+        if (p.eaten >= 0) {
+          audioService.playGulp();
+        }
         this.food.splice(j, 1);
       }
     }
 
-    // 3. Update bubbles
+    // 5. Update bubbles
     for (let j = this.bubbles.length - 1; j >= 0; j--) {
       if (this.time - this.bubbles[j].born > 0.8) {
         this.bubbles.splice(j, 1);
       }
     }
 
-    // 4. Update rings
+    // 6. Update rings
     for (let j = this.rings.length - 1; j >= 0; j--) {
       const r = this.rings[j];
       const maxLife = r.tiny ? 0.7 : r.small ? 1.2 : 2.6;
@@ -250,7 +321,7 @@ export class World implements WorldContext {
       }
     }
 
-    // 5. Update paws and splashes
+    // 7. Update paws and splashes
     for (const p of this.paws) {
       const a = this.time - p.born;
       if (!p.hit && a >= 0.24) {
@@ -295,7 +366,7 @@ export class World implements WorldContext {
       }
     }
 
-    // 6. Update drops
+    // 8. Update drops
     for (let j = this.drops.length - 1; j >= 0; j--) {
       const d = this.drops[j];
       if (this.time - d.born >= d.dur) {
@@ -305,7 +376,7 @@ export class World implements WorldContext {
       }
     }
 
-    // 7. Ambient particles spawn and update
+    // 9. Ambient particles
     if (this.biome.ambientParticleType === "petals" && Math.random() < 0.06) {
       this.particles.spawnPetal(this.vw, this.vh);
     } else if (
@@ -317,15 +388,11 @@ export class World implements WorldContext {
       this.biome.ambientParticleType === "bubbles" &&
       Math.random() < 0.12
     ) {
-      this.particles.spawnBubble(
-        Math.random() * this.vw,
-        this.vh + 10
-      );
+      this.particles.spawnBubble(Math.random() * this.vw, this.vh + 10);
     }
     this.particles.update(dt, this.vw, this.vh);
 
-    // 8. Diffuse wake field
+    // 10. Diffuse wake field
     grid.diffuseWake(dt);
   }
 }
-

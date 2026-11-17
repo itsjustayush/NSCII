@@ -40,6 +40,7 @@ export interface WorldContext {
   pointerX: number;
   pointerY: number;
   pointerActive: boolean;
+  dimBox: DOMRect | null;
   addRing(x: number, y: number, scale?: number, small?: boolean): void;
   addBubble(x: number, y: number): void;
   dimAt(x: number, y: number): number;
@@ -65,4 +66,3 @@ export interface Creature {
   onPointerDisturb?(x: number, y: number, intensity: number): void;
   onFeed?(food: FoodPellet): void;
 }
-

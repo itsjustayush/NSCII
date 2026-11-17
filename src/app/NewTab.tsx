@@ -5,12 +5,16 @@ import { GlyphRenderer } from "../engine/renderer/GlyphRenderer";
 import { Scheduler } from "../engine/simulation/Scheduler";
 import { PALETTES } from "../engine/renderer/ColorPalettes";
 import { BIOMES } from "../engine/environment/Biomes";
+import { WeatherType } from "../engine/environment/Weather";
+import { TimeOfDay } from "../engine/environment/DayNight";
 import {
   UserSettings,
   DEFAULT_SETTINGS,
   loadSettings,
   saveSettings,
 } from "../services/storage";
+import { audioService } from "../services/audio";
+import { Dog } from "../creatures/terrestrial/Dog";
 import { Clock } from "./components/Clock";
 import { SearchBar } from "./components/SearchBar";
 import { InteractionBar } from "./components/InteractionBar";
@@ -22,6 +26,7 @@ export const NewTab: React.FC = () => {
 
   const [settings, setSettings] = useState<UserSettings>(DEFAULT_SETTINGS);
   const [isSettingsOpen, setIsSettingsOpen] = useState(false);
+  const [isDogOnSearch, setIsDogOnSearch] = useState(false);
 
   // Engine references kept outside React state to avoid re-renders during 60FPS loop
   const engineRef = useRef<{
@@ -29,12 +34,14 @@ export const NewTab: React.FC = () => {
     grid: CharacterGrid;
     renderer: GlyphRenderer;
     scheduler: Scheduler;
+    draggedDog: Dog | null;
   } | null>(null);
 
   // Load initial settings
   useEffect(() => {
     loadSettings().then((loaded) => {
       setSettings(loaded);
+      audioService.setMuted(loaded.soundMuted);
     });
   }, []);
 
@@ -45,11 +52,19 @@ export const NewTab: React.FC = () => {
 
     const grid = new CharacterGrid();
     const world = new World(settings.biome, settings.palette);
+    world.setWeather(settings.weather);
+    world.setTimeOfDay(settings.timeOfDay);
     const renderer = new GlyphRenderer(canvas, grid);
 
     const scheduler = new Scheduler(
       (dt) => {
         world.advance(dt, grid);
+
+        // Check if any dog is playfully sitting on the search bar
+        const dogSitting = world.creatures.some(
+          (c) => c.species === "dog" && (c as Dog).state === "sit_search"
+        );
+        setIsDogOnSearch(dogSitting);
       },
       () => {
         renderer.render(world);
@@ -78,7 +93,7 @@ export const NewTab: React.FC = () => {
 
     scheduler.start();
 
-    engineRef.current = { world, grid, renderer, scheduler };
+    engineRef.current = { world, grid, renderer, scheduler, draggedDog: null };
 
     return () => {
       window.removeEventListener("resize", handleResize);
@@ -97,6 +112,10 @@ export const NewTab: React.FC = () => {
     if (eng.world.palette.id !== settings.palette) {
       eng.world.setPalette(settings.palette);
     }
+    eng.world.setWeather(settings.weather);
+    eng.world.setTimeOfDay(settings.timeOfDay);
+    audioService.setMuted(settings.soundMuted);
+
     eng.scheduler.fpsLimit = settings.fpsLimit;
     eng.scheduler.reduceMotion = settings.reduceMotion;
 
@@ -133,7 +152,7 @@ export const NewTab: React.FC = () => {
     saveSettings(DEFAULT_SETTINGS);
   };
 
-  // User interactions: Pointer click / drag / feed
+  // User interactions: Pointer click / drag dog / feed
   const handlePointerDown = (e: React.PointerEvent<HTMLCanvasElement>) => {
     const eng = engineRef.current;
     if (!eng) return;
@@ -146,11 +165,24 @@ export const NewTab: React.FC = () => {
     eng.world.pointerY = y;
     eng.world.pointerActive = true;
 
+    // Check if user clicked directly on a dog to drag it!
+    for (const c of eng.world.creatures) {
+      if (c.species === "dog") {
+        const dog = c as Dog;
+        const dist = Math.hypot(dog.x - x, dog.y - y);
+        if (dist < 40) {
+          dog.startDrag();
+          eng.draggedDog = dog;
+          return;
+        }
+      }
+    }
+
     if (e.button === 2) {
-      // Right click feeds
+      // Right click feeds (tosses food/bones)
       eng.world.feed(x, y);
     } else {
-      // Left click: Poke paw if pond or disturb water
+      // Left click: Poke paw if pond or disturb water/ground
       if (eng.world.biome.hasPawInteraction) {
         eng.world.poke(x, y);
       } else {
@@ -172,14 +204,31 @@ export const NewTab: React.FC = () => {
 
     // Dragging stirs the water
     if (e.buttons === 1) {
-      eng.grid.stampWake(x, y, 2, 0.4);
-      eng.world.disturb(x, y, 0.6);
+      if (eng.draggedDog) {
+        // Dog follows cursor while dragged
+        eng.draggedDog.x = x;
+        eng.draggedDog.y = y;
+      } else {
+        eng.grid.stampWake(x, y, 2, 0.4);
+        eng.world.disturb(x, y, 0.6);
+      }
+    } else {
+      // Hovering near creatures allows petting or avoidance
+      for (const c of eng.world.creatures) {
+        if (c.onPointerDisturb) {
+          c.onPointerDisturb(x, y, 0.4);
+        }
+      }
     }
   };
 
   const handlePointerUp = () => {
-    if (engineRef.current) {
-      engineRef.current.world.pointerActive = false;
+    const eng = engineRef.current;
+    if (!eng) return;
+    eng.world.pointerActive = false;
+    if (eng.draggedDog) {
+      eng.draggedDog.stopDrag();
+      eng.draggedDog = null;
     }
   };
 
@@ -193,10 +242,9 @@ export const NewTab: React.FC = () => {
     }
   };
 
-  // Keyboard shortcuts (F to feed, Space to disturb, T to cycle theme)
+  // Keyboard shortcuts (F to feed, Space to disturb, T to cycle theme, L to drop lantern)
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
-      // Ignore if typing inside search input
       if (
         document.activeElement?.tagName === "INPUT" ||
         document.activeElement?.tagName === "SELECT"
@@ -217,6 +265,8 @@ export const NewTab: React.FC = () => {
         }
       } else if (e.key === "t" || e.key === "T") {
         cyclePalette();
+      } else if (e.key === "l" || e.key === "L") {
+        dropLantern();
       }
     };
 
@@ -228,6 +278,24 @@ export const NewTab: React.FC = () => {
     const paletteIds = Object.keys(PALETTES);
     const nextIdx = (paletteIds.indexOf(settings.palette) + 1) % paletteIds.length;
     handleUpdateSettings({ palette: paletteIds[nextIdx] });
+  };
+
+  const cycleWeather = () => {
+    const list: WeatherType[] = ["clear", "rain", "snow", "wind", "mist"];
+    const nextIdx = (list.indexOf(settings.weather) + 1) % list.length;
+    handleUpdateSettings({ weather: list[nextIdx] });
+  };
+
+  const cycleTimeOfDay = () => {
+    const list: TimeOfDay[] = ["auto", "dawn", "day", "dusk", "night"];
+    const nextIdx = (list.indexOf(settings.timeOfDay) + 1) % list.length;
+    handleUpdateSettings({ timeOfDay: list[nextIdx] });
+  };
+
+  const toggleSound = () => {
+    const nextMuted = !settings.soundMuted;
+    audioService.setMuted(nextMuted);
+    handleUpdateSettings({ soundMuted: nextMuted });
   };
 
   const triggerFeed = () => {
@@ -248,6 +316,15 @@ export const NewTab: React.FC = () => {
       } else {
         engineRef.current.world.disturb(cx, cy, 1.5);
       }
+    }
+  };
+
+  const dropLantern = () => {
+    if (engineRef.current) {
+      const x = window.innerWidth / 2 + (Math.random() - 0.5) * 200;
+      const y = window.innerHeight * 0.65 + (Math.random() - 0.5) * 100;
+      engineRef.current.world.obstacles.addLantern(x, y);
+      audioService.playSplash(0.8);
     }
   };
 
@@ -288,9 +365,11 @@ export const NewTab: React.FC = () => {
             engineId={settings.searchEngine}
             customUrl={settings.customSearchUrl}
             showSuggestions={settings.showSuggestions}
+            showTopSites={settings.showTopSites}
             onEngineChange={(engine) => handleUpdateSettings({ searchEngine: engine })}
             recentSearches={settings.recentSearches}
             onAddRecentSearch={handleAddRecentSearch}
+            dogObstructing={isDogOnSearch}
           />
         </div>
       </main>
@@ -299,6 +378,9 @@ export const NewTab: React.FC = () => {
       <InteractionBar
         currentBiomeId={settings.biome}
         currentPaletteId={settings.palette}
+        currentWeather={settings.weather}
+        currentTimeOfDay={settings.timeOfDay}
+        soundMuted={settings.soundMuted}
         onFeed={triggerFeed}
         onDisturb={triggerDisturb}
         onCycleTheme={cyclePalette}
@@ -310,6 +392,10 @@ export const NewTab: React.FC = () => {
             palette: b?.defaultPalette || settings.palette,
           });
         }}
+        onToggleSound={toggleSound}
+        onCycleWeather={cycleWeather}
+        onCycleTimeOfDay={cycleTimeOfDay}
+        onDropLantern={dropLantern}
       />
 
       {/* 4. Customization Settings Drawer */}
@@ -323,4 +409,3 @@ export const NewTab: React.FC = () => {
     </div>
   );
 };
-

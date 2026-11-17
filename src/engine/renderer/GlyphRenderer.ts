@@ -160,26 +160,33 @@ export class GlyphRenderer {
       wake,
       touched,
     } = grid;
-    const { palette, creatures, dimAt, water, time, paws, biome } = world;
+    const { palette, creatures, dimAt, water, time, paws, biome, lighting } = world;
 
     // 1. Reset rasterized cells from previous frame
     grid.clear();
 
-    // 2. Sort creatures by depth and rasterize into grid
+    // 2. Obstacles (Lilypads, River Stones, Lanterns, Shishi-odoshi)
+    if (biome.hasLilyPads || biome.hasBambooFountain) {
+      world.obstacles.rasterize(grid, palette, dimAt);
+    }
+
+    // 3. Sort creatures by depth and rasterize into grid
     const sortedCreatures = [...creatures].sort((a, b) => a.depth - b.depth);
     for (const c of sortedCreatures) {
       c.rasterize(grid, world, dimAt);
     }
 
-    // 3. Rasterize ambient particles
+    // 4. Ambient particles & Weather particles
     world.particles.rasterize(grid, palette, dimAt);
+    world.weather.rasterize(grid, palette, dimAt);
 
-    // 4. Begin Canvas Frame Rendering
+    // 5. Begin Canvas Frame Rendering
     ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
 
-    // Viewport background
+    // Apply lighting tint and ambient brightness to background
+    const bgCol = mixC(palette.water, lighting.tintColor, 0.25);
     ctx.globalAlpha = 1;
-    ctx.fillStyle = css(pack(palette.water));
+    ctx.fillStyle = css(pack(mul(bgCol, lighting.ambientLight)));
     ctx.fillRect(0, 0, vw, vh);
 
     ctx.font = `600 ${Math.round(ch * 0.74)}px ${MONO_FONT}`;
@@ -193,7 +200,7 @@ export class GlyphRenderer {
     const snap = (v: number) => Math.round(v * dpr) / dpr;
     const gap = cw * 0.05;
 
-    // 5. Draw Shadows on Floor
+    // 6. Draw Shadows on Floor
     ctx.fillStyle = shadeFill;
     for (let i = 0; i < shade.length; i++) {
       if (!(shade[i] > 0)) continue;
@@ -208,7 +215,7 @@ export class GlyphRenderer {
       );
     }
 
-    // 6. Draw Solid Colored Cell Rectangles (batched by color)
+    // 7. Draw Solid Colored Cell Rectangles (batched by color)
     let currentFill = -1;
     for (let k = 0; k < touched.length; k++) {
       const i = touched[k];
@@ -231,7 +238,7 @@ export class GlyphRenderer {
       );
     }
 
-    // 7. Draw Environmental Water Grid (Caustics, Wakes, Rings, Ambient Sparkles)
+    // 8. Draw Environmental Grid (Caustics, Wakes, Rings, Grass in Dog Park, Sparkles)
     ctx.fillStyle = dot;
     const sparkProb = 0.022;
 
@@ -261,9 +268,19 @@ export class GlyphRenderer {
           continue;
         }
 
+        // Grassy park floor for Dog Park
+        if (biome.hasGrassGround) {
+          const hGrass = h2(c * 17, r * 31);
+          if (hGrass < 0.08) {
+            ctx.globalAlpha = 0.2 + 0.15 * Math.sin(time * 0.5 + hGrass * 10);
+            ctx.fillText(hGrass < 0.03 ? "☘" : hGrass < 0.06 ? '"' : ",", x, y);
+            continue;
+          }
+        }
+
         // Caustic net on open water
         if (biome.hasWaterCaustics) {
-          const cl = water.caustics(x, y, time);
+          const cl = water.caustics(x, y, time) * lighting.causticBoost;
           if (cl > 0.8) {
             ctx.globalAlpha = (cl - 0.8) * 1.3;
             ctx.fillText(cl > 0.94 ? "~" : cl > 0.87 ? "-" : "·", x, y);
@@ -271,7 +288,19 @@ export class GlyphRenderer {
           }
         }
 
-        // Subtle ambient sparkle on empty water
+        // Crescent moon reflection at night in upper right
+        if (lighting.showMoon) {
+          const mx = vw * lighting.moonX;
+          const my = vh * lighting.moonY;
+          const md = Math.hypot(x - mx, y - my);
+          if (md < 35 && md > 18) {
+            ctx.globalAlpha = 0.35 * (1 - md / 36);
+            ctx.fillText(")", x, y);
+            continue;
+          }
+        }
+
+        // Subtle ambient sparkle on empty space
         const h = h2(c, r);
         if (h < sparkProb) {
           ctx.globalAlpha =
@@ -281,7 +310,7 @@ export class GlyphRenderer {
       }
     }
 
-    // 8. Draw ASCII Foreground Glyph Characters (batched by color)
+    // 9. Draw ASCII Foreground Glyph Characters (batched by color)
     currentFill = -1;
     for (let k = 0; k < touched.length; k++) {
       const i = touched[k];
@@ -299,10 +328,10 @@ export class GlyphRenderer {
       );
     }
 
-    // 9. Draw Food Pellets and Bubbles
+    // 10. Draw Food Pellets and Bubbles
     this.drawFood(world);
 
-    // 10. Draw Cat Paws
+    // 11. Draw Cat Paws
     for (const p of paws) {
       drawPaw(ctx, p, time, cw, ch, vw, vh, dpr, palette);
     }
@@ -310,4 +339,3 @@ export class GlyphRenderer {
     ctx.globalAlpha = 1;
   }
 }
-
