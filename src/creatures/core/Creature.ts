@@ -12,6 +12,10 @@ export interface FoodPellet {
   landed: boolean;
   eaten: number;
   claim: number;
+  eaterX?: number;
+  eaterY?: number;
+  eaterSpecies?: string;
+  eatenDuration?: number;
 }
 
 export interface RippleRing {

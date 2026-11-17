@@ -2,6 +2,7 @@ import { Creature, WorldContext } from "../core/Creature";
 import { CharacterGrid } from "../../engine/renderer/CharacterGrid";
 import {
   clamp,
+  lerp,
   TAU,
   ell,
   sq,
@@ -80,6 +81,37 @@ export class Jellyfish implements Creature {
     // Gentle upward drift with side sway
     const sway = Math.sin(time * 0.6 + this.seed) * 0.25;
     this.angle = -Math.PI / 2 + sway;
+
+    // Feed on food drifting through the deep ocean
+    if (world.food.length > 0) {
+      let nearestFood = null;
+      let minD = 380 * (vw / 1000);
+      for (const p of world.food) {
+        if (p.eaten >= 0) continue;
+        const d = Math.hypot(p.x - this.x, p.y - this.y);
+        if (d < minD) {
+          minD = d;
+          nearestFood = p;
+        }
+      }
+
+      if (nearestFood) {
+        nearestFood.claim++;
+        const targetA = Math.atan2(nearestFood.y - this.y, nearestFood.x - this.x);
+        this.angle = lerp(this.angle, targetA, Math.min(1, dt * 2.8));
+
+        if (minD < 28) {
+          nearestFood.eaten = world.time;
+          nearestFood.eaterX = this.x;
+          nearestFood.eaterY = this.y;
+          nearestFood.eaterSpecies = "jellyfish";
+          nearestFood.eatenDuration = 0.32;
+          this.scared = 1.2; // Bioluminescent flash on feed
+          world.addRing(this.x, this.y, 0.9, true);
+          world.addBubble(this.x, this.y);
+        }
+      }
+    }
 
     const baseSpeed = (12 + (this.seed % 8)) * (this.scared > 0 ? 2.2 : 1);
     this.speed = baseSpeed * speedMod;

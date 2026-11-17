@@ -82,14 +82,27 @@ export class GlyphRenderer {
     const ph = ch * 0.48;
 
     for (const p of food) {
-      if (time < p.born || p.eaten >= 0) continue;
+      if (time < p.born) continue;
       let x = p.x;
       let y = p.y;
       let hh = 0;
       let a = 1;
       let big = 1;
 
-      if (!p.landed) {
+      if (p.eaten >= 0) {
+        const dur = p.eatenDuration ?? 0.28;
+        const u = clamp((time - p.eaten) / dur, 0, 1);
+        if (u >= 1) continue;
+
+        // Suction pull directly into creature's mouth
+        if (p.eaterX !== undefined && p.eaterY !== undefined) {
+          x = lerp(p.x, p.eaterX, u * 0.94);
+          y = lerp(p.y, p.eaterY, u * 0.94);
+        }
+        // Elastic gulp shrink into mouth
+        big = Math.max(0, (1 - u) * (1 + 0.35 * Math.sin(u * Math.PI)));
+        a = 1 - u * u;
+      } else if (!p.landed) {
         const u = clamp((time - p.born) / (p.land - p.born), 0, 1);
         x = lerp(p.x0, p.x, u);
         y = lerp(p.y0, p.y, u);
@@ -97,12 +110,13 @@ export class GlyphRenderer {
         big = 1 + 0.9 * (1 - u);
       } else {
         const age = time - p.land;
-        a = 1 - clamp((age - 16) / 2.5, 0, 1);
-        hh = age < 0.3 ? 0.25 * Math.sin((age / 0.3) * Math.PI) : 0;
+        hh = age < 0.3 ? 0.25 * Math.sin((age / 0.3) * Math.PI) : Math.sin(time * 3 + p.seed) * 0.08;
       }
 
       const w = pw * big;
       const h = ph * big;
+      if (w < 0.5 || h < 0.5) continue;
+
       const X = px(x - w / 2);
       const Y = px(y - h / 2);
 
@@ -115,8 +129,7 @@ export class GlyphRenderer {
         px(h)
       );
 
-      ctx.globalAlpha =
-        a * (p.landed && time - p.land > 16 * 0.6 ? 0.85 : 1);
+      ctx.globalAlpha = a;
       ctx.fillStyle = body;
       ctx.fillRect(X, Y, px(w), px(h));
 

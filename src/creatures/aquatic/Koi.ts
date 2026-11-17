@@ -212,11 +212,12 @@ export class Koi implements Creature {
   seekFrom: number = 0;
   seekUntil: number = 0;
 
-  appetite: number = 0.5;
+  appetite: number = 0.85;
   fullUntil: number = 0;
   rise: number = 0;
   kick: number = 0;
   meal: FoodPellet | null = null;
+  biteTime: number = -1;
 
   // Reusable spine scratchpads
   private spine = new Float32Array(N * 2);
@@ -257,7 +258,7 @@ export class Koi implements Creature {
     this.ny = 0.22 + r() * 0.56;
     this.depth = 0.35 + r() * 0.65;
     this.phase = r() * 6.28;
-    this.appetite = h2(this.seed, 5);
+    this.appetite = 0.65 + 0.35 * h2(this.seed, 5);
   }
 
   private headX(vw: number): number {
@@ -279,32 +280,64 @@ export class Koi implements Creature {
     }
   }
 
+  onFeed(food: FoodPellet) {
+    const d = Math.hypot(food.x - this.x, food.y - this.y);
+    if (d < 1800) {
+      this.fullUntil = 0; // Wake up immediately to feed
+    }
+  }
+
   private findMeal(list: FoodPellet[], hx: number, hy: number, k: number, time: number): FoodPellet | null {
-    if (this.appetite < 0.18 || time < this.fullUntil) return null;
+    if (time < this.fullUntil) return null;
     let best: FoodPellet | null = null;
-    let bd = (240 + 320 * this.appetite) * k;
+    let bestScore = Infinity;
+    const baseRadius = (900 + 700 * this.appetite) * k;
+
     for (const p of list) {
-      if (p.eaten >= 0 || time < p.land - 0.25 || time - p.land > 16) continue;
-      const d = Math.hypot(p.x - hx, p.y - hy) + p.claim * 60 * k;
-      if (d < bd) {
-        bd = d;
-        best = p;
+      if (p.eaten >= 0 || time < p.land - 0.25) continue;
+      // Scent spreads across the whole pond if floating > 1.2s
+      const age = time - p.land;
+      const maxRange = age > 1.2 ? 3500 * k : baseRadius;
+      const dist = Math.hypot(p.x - hx, p.y - hy);
+
+      if (dist <= maxRange) {
+        // Balanced penalty for pellets already targeted by another fish
+        const score = dist + p.claim * 50 * k;
+        if (score < bestScore) {
+          bestScore = score;
+          best = p;
+        }
       }
     }
-    if (best) best.claim++;
+    if (best) {
+      best.claim++;
+    }
     return best;
   }
 
   private eat(p: FoodPellet, world: WorldContext) {
+    const k = clamp(world.vw / 1000, 0.62, 1.25);
+    const mouthX = this.x + Math.cos(this.angle) * (14 * k);
+    const mouthY = this.y + Math.sin(this.angle) * (14 * k);
+
     p.eaten = world.time;
+    p.eaterX = mouthX;
+    p.eaterY = mouthY;
+    p.eaterSpecies = "koi";
+    p.eatenDuration = 0.28;
+
+    this.biteTime = world.time;
+    // Short swallow pause (0.14 - 0.22s) so the koi enthusiastically eats the next pellet in the cluster!
     this.fullUntil =
-      world.time + 0.3 + 0.5 * h2(this.seed, Math.round(world.time * 10));
-    this.kick = 1;
-    world.addRing(p.x, p.y, 1.2, true);
-    for (let j = 0; j < 3; j++) {
+      world.time + 0.14 + 0.08 * h2(this.seed, Math.round(world.time * 7));
+    this.kick = 1.3;
+
+    // Gulp water ripples and bubbles
+    world.addRing(mouthX, mouthY, 1.3 * k, true);
+    for (let j = 0; j < 4; j++) {
       world.addBubble(
-        p.x + (h2(p.seed, j) - 0.5) * 18,
-        p.y + (h2(p.seed, j + 9) - 0.5) * 14
+        mouthX + (h2(p.seed + j * 13, 1) - 0.5) * 18 * k,
+        mouthY + (h2(p.seed + j * 13, 2) - 0.5) * 14 * k
       );
     }
   }
@@ -359,18 +392,20 @@ export class Koi implements Creature {
       (this.meal = this.findMeal(world.food, hx, hy, k, time))
     ) {
       const p = this.meal;
-      const dist = Math.hypot(p.x - hx, p.y - hy);
+      const mouthX = hx + Math.cos(this.angle) * (14 * k);
+      const mouthY = hy + Math.sin(this.angle) * (14 * k);
+      const dist = Math.hypot(p.x - mouthX, p.y - mouthY);
+      const targetAngle = Math.atan2(p.y - mouthY, p.x - mouthX);
       const d = Math.atan2(
-        Math.sin(Math.atan2(p.y - hy, p.x - hx) - this.angle),
-        Math.cos(Math.atan2(p.y - hy, p.x - hx) - this.angle)
+        Math.sin(targetAngle - this.angle),
+        Math.cos(targetAngle - this.angle)
       );
-      this.turn = lerp(this.turn, clamp(d * 3.6, -3.4, 3.4), Math.min(1, dt * 7));
-      hurry =
-        1.2 +
-        1.3 *
-        clamp(dist / (150 * k), 0, 1) *
-        (Math.abs(d) < 1.1 ? 1 : 0.45);
-      this.rise = Math.min(1, this.rise + dt * 1.6);
+
+      // Fast, accurate steering directly to the pellet
+      const steerTightness = dist < 100 * k ? 6.2 : 4.4;
+      this.turn = lerp(this.turn, clamp(d * steerTightness, -3.8, 3.8), Math.min(1, dt * 9));
+      hurry = 1.6 + 1.4 * clamp(dist / (130 * k), 0.35, 1);
+      this.rise = Math.min(1, this.rise + dt * 2.8);
     } else if (time > this.seekFrom && time < this.seekUntil) {
       if (Math.hypot(this.seekX - hx, this.seekY - hy) < 26 * k) {
         this.seekUntil = 0;
@@ -435,11 +470,14 @@ export class Koi implements Creature {
     if (this.nx > 1 + m) this.nx = -m;
     if (this.nx < -m) this.nx = 1 + m;
 
-    if (
-      this.meal &&
-      Math.hypot(this.meal.x - hx, this.meal.y - hy) < 16 * k
-    ) {
-      this.eat(this.meal, world);
+    if (this.meal) {
+      const mouthX = hx + Math.cos(this.angle) * (14 * k);
+      const mouthY = hy + Math.sin(this.angle) * (14 * k);
+      const distToMouth = Math.hypot(this.meal.x - mouthX, this.meal.y - mouthY);
+      if (distToMouth < 24 * k) {
+        this.eat(this.meal, world);
+        this.meal = null;
+      }
     }
   }
 
@@ -717,7 +755,14 @@ export class Koi implements Creature {
           tile = mul(base, lit);
           tA = (cover >= 0.6 ? 1 : cover * 1.4) * alphaBase;
 
-          if (kind === 3) {
+          const isBiting = world.time < this.biteTime + 0.28;
+          if (isBiting && s < 0.05 && across < 0.4) {
+            g = "O";
+            gC = [255, 105, 95];
+            gA = 0.95 * alphaBase;
+            tile = [60, 20, 20];
+            tA = 0.95 * alphaBase;
+          } else if (kind === 3) {
             g = "o";
             gC = Kc.white;
             gA = 0.95 * alphaBase;

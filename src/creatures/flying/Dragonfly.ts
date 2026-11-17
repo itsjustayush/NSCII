@@ -2,6 +2,7 @@ import { Creature, WorldContext } from "../core/Creature";
 import { CharacterGrid } from "../../engine/renderer/CharacterGrid";
 import {
   TAU,
+  lerp,
   ell,
   sq,
   pack,
@@ -68,9 +69,34 @@ export class Dragonfly implements Creature {
     if (this.scared > 0) {
       this.scared = Math.max(0, this.scared - dt);
     } else {
-      // Dart-and-hover movement characteristic of dragonflies
-      const dart = 0.5 + 0.5 * Math.sin(time * 1.3 + this.seed * 9);
-      if (Math.random() < 0.03) {
+      // Dart-and-hover movement; snatch food particles
+      if (world.food.length > 0) {
+        let nearestFood = null;
+        let minD = 350 * (vw / 1000);
+        for (const p of world.food) {
+          if (p.eaten >= 0) continue;
+          const d = Math.hypot(p.x - this.x, p.y - this.y);
+          if (d < minD) {
+            minD = d;
+            nearestFood = p;
+          }
+        }
+
+        if (nearestFood) {
+          nearestFood.claim++;
+          const targetA = Math.atan2(nearestFood.y - this.y, nearestFood.x - this.x);
+          this.angle = lerp(this.angle, targetA, Math.min(1, dt * 4.5));
+          if (minD < 22) {
+            nearestFood.eaten = world.time;
+            nearestFood.eaterX = this.x;
+            nearestFood.eaterY = this.y;
+            nearestFood.eaterSpecies = "dragonfly";
+            nearestFood.eatenDuration = 0.22;
+          }
+        } else if (Math.random() < 0.03) {
+          this.angle += (Math.random() - 0.5) * 1.8;
+        }
+      } else if (Math.random() < 0.03) {
         this.angle += (Math.random() - 0.5) * 1.8;
       }
     }

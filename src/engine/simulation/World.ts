@@ -23,9 +23,6 @@ import {
 } from "../interactions/Paw";
 import { clamp, h2, lerp } from "./Physics";
 
-const FLOAT_TIME = 16;
-const SINKING_TIME = 2.5;
-
 export interface Droplet {
   x0: number;
   y0: number;
@@ -206,6 +203,11 @@ export class World implements WorldContext {
   advance(dt: number, grid: CharacterGrid) {
     this.time += dt;
 
+    // Reset targeting claim counters each frame for balanced creature distribution
+    for (const p of this.food) {
+      p.claim = 0;
+    }
+
     // 1. Update creatures
     for (const c of this.creatures) {
       c.update(dt, this);
@@ -215,21 +217,24 @@ export class World implements WorldContext {
     for (const p of this.food) {
       if (!p.landed && this.time >= p.land) {
         p.landed = true;
-        this.addRing(p.x, p.y, 0.5, true);
-        grid.stampWake(p.x, p.y, 1, 0.25);
+        this.addRing(p.x, p.y, 0.7, true);
+        grid.stampWake(p.x, p.y, 1.2, 0.35);
+        for (const c of this.creatures) {
+          if (c.onFeed) c.onFeed(p);
+        }
       }
       if (p.landed && p.eaten < 0) {
+        // Natural gentle water surface drift
         p.x += Math.sin(this.time * 0.6 + p.seed) * 2.4 * dt;
         p.y += Math.cos(this.time * 0.45 + p.seed * 1.3) * 1.6 * dt;
       }
     }
 
+    // 3. Remove food only after eating suction/swallow animation finishes
     for (let j = this.food.length - 1; j >= 0; j--) {
       const p = this.food[j];
-      if (
-        (p.eaten >= 0 && this.time - p.eaten > 0.05) ||
-        (p.landed && this.time - p.land > FLOAT_TIME + SINKING_TIME)
-      ) {
+      const dur = p.eatenDuration ?? 0.28;
+      if (p.eaten >= 0 && this.time - p.eaten >= dur) {
         this.food.splice(j, 1);
       }
     }

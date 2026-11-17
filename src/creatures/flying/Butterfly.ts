@@ -2,6 +2,7 @@ import { Creature, WorldContext } from "../core/Creature";
 import { CharacterGrid } from "../../engine/renderer/CharacterGrid";
 import {
   clamp,
+  lerp,
   TAU,
   ell,
   sq,
@@ -75,11 +76,42 @@ export class Butterfly implements Creature {
     if (this.scared > 0) {
       this.scared = Math.max(0, this.scared - dt);
     } else {
-      // Natural gentle wandering and floral wobble
-      const wobble =
-        0.55 * Math.sin(time * 1.7 + this.seed * 5) +
-        0.25 * Math.sin(time * 3.3 + this.seed);
-      this.angle += wobble * dt * 2;
+      // Seek sweet food droplets in the garden
+      if (world.food.length > 0) {
+        let nearestFood = null;
+        let minD = 350 * (vw / 1000);
+        for (const p of world.food) {
+          if (p.eaten >= 0) continue;
+          const d = Math.hypot(p.x - this.x, p.y - this.y);
+          if (d < minD) {
+            minD = d;
+            nearestFood = p;
+          }
+        }
+
+        if (nearestFood) {
+          nearestFood.claim++;
+          const targetA = Math.atan2(nearestFood.y - this.y, nearestFood.x - this.x);
+          this.angle = lerp(this.angle, targetA, Math.min(1, dt * 3.5));
+          if (minD < 20) {
+            nearestFood.eaten = world.time;
+            nearestFood.eaterX = this.x;
+            nearestFood.eaterY = this.y;
+            nearestFood.eaterSpecies = "butterfly";
+            nearestFood.eatenDuration = 0.3;
+          }
+        } else {
+          const wobble =
+            0.55 * Math.sin(time * 1.7 + this.seed * 5) +
+            0.25 * Math.sin(time * 3.3 + this.seed);
+          this.angle += wobble * dt * 2;
+        }
+      } else {
+        const wobble =
+          0.55 * Math.sin(time * 1.7 + this.seed * 5) +
+          0.25 * Math.sin(time * 3.3 + this.seed);
+        this.angle += wobble * dt * 2;
+      }
     }
 
     const baseSpeed = (26 + (this.seed % 12)) * (this.scared > 0 ? 2.5 : 1);

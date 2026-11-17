@@ -85,6 +85,39 @@ export class Crab implements Creature {
     const baseSpeed = isWalking ? (18 + (this.seed % 8)) * (this.scared > 0 ? 2.5 : 1) : 0;
     this.speed = baseSpeed;
 
+    // Check for nearby food pellets to pinch and eat
+    if (this.scared <= 0 && world.food.length > 0) {
+      let nearestFood = null;
+      let minD = 500 * (vw / 1000);
+      for (const p of world.food) {
+        if (p.eaten >= 0 || !p.landed) continue;
+        const d = Math.hypot(p.x - this.x, p.y - this.y);
+        if (d < minD) {
+          minD = d;
+          nearestFood = p;
+        }
+      }
+
+      if (nearestFood) {
+        nearestFood.claim++;
+        this.angle = nearestFood.x > this.x ? 0 : Math.PI;
+        this.ny += Math.sign(nearestFood.y - this.y) * 0.06 * dt;
+        this.speed = (26 + (this.seed % 8)) * 1.5;
+        this.phase += dt * 20;
+
+        if (minD < 22) {
+          nearestFood.eaten = world.time;
+          nearestFood.eaterX = this.x;
+          nearestFood.eaterY = this.y;
+          nearestFood.eaterSpecies = "crab";
+          nearestFood.eatenDuration = 0.25;
+          world.addRing(this.x, this.y, 0.7, true);
+          world.addBubble(this.x + 4, this.y - 4);
+          world.addBubble(this.x - 4, this.y - 4);
+        }
+      }
+    }
+
     const dx = Math.cos(this.angle) * this.speed * dt;
     this.nx += dx / vw;
 

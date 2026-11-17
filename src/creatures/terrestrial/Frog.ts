@@ -74,7 +74,35 @@ export class Frog implements Creature {
     if (this.scared > 0) {
       this.scared = Math.max(0, this.scared - dt);
     } else {
-      if (Math.random() < 0.02) {
+      // Frog eating behavior: notice food, orient and leap towards it
+      if (world.food.length > 0) {
+        let nearestFood = null;
+        let minD = 450 * (vw / 1000);
+        for (const p of world.food) {
+          if (p.eaten >= 0 || !p.landed) continue;
+          const d = Math.hypot(p.x - this.x, p.y - this.y);
+          if (d < minD) {
+            minD = d;
+            nearestFood = p;
+          }
+        }
+
+        if (nearestFood) {
+          nearestFood.claim++;
+          this.angle = Math.atan2(nearestFood.y - this.y, nearestFood.x - this.x);
+          if (minD < 32) {
+            nearestFood.eaten = world.time;
+            nearestFood.eaterX = this.x;
+            nearestFood.eaterY = this.y;
+            nearestFood.eaterSpecies = "frog";
+            nearestFood.eatenDuration = 0.22;
+            world.addRing(this.x, this.y, 0.8, true);
+            world.addBubble(this.x, this.y - 8);
+          }
+        } else if (Math.random() < 0.02) {
+          this.angle += (Math.random() - 0.5) * 1.5;
+        }
+      } else if (Math.random() < 0.02) {
         this.angle += (Math.random() - 0.5) * 1.5;
       }
     }
